@@ -3,6 +3,15 @@
 !!! note
     TestKit is also available in Java language.  
     Please refer to the [documentation][java-testkit] for details.
+    
+<!-- Review: I'd integrate it better (a note in the very beginning does not look good):
+
+"You can test Exonum services with the help of the Exonum Testkit. [The rest of the paragraph
+with the general description]
+
+This document describes testing of Rust services with exonum-testkit crate, for Java 
+instructions — see the <section name> section."
+-->
 
 You can test Exonum services with the help of the [**exonum-testkit**][exonum-testkit]
 crate. The crate allows to test transaction execution and APIs in the synchronous

@@ -465,6 +465,9 @@ For using the library include the dependency in your `pom.xml`:
 </dependency>
 ```
 
+Review: "is already included" + link to the documentation section, not the Maven central.
+Review: I would put that in `### Project Configuration` section, with this sentence as the first,
+followed by sth like: "Existing projects shall be configured as described below"
 `exonum-testkit` will be already included in projects generated with
 [`exonum-java-binding-service-archetype`][archetype-maven].
 
@@ -483,6 +486,7 @@ as specified in [How to Run a Service section](#how-to-run-a-service).
 ```xml
 <plugin>
     <!-- You can also configure a failsafe to run integration tests during
+    Review: verify phase
          'validate' phase of a Maven build to separate unit tests and ITs. -->
     <artifactId>maven-surefire-plugin</artifactId>
     <configuration>
@@ -549,6 +553,15 @@ try (TestKit testKit = TestKit.forService(MyServiceModule.class)) {
   // Check the resulting block or blockchain state
 }
 ```
+Review: Perform a verification with `getSnapshot`?
+```
+Snapshot snapshot = testKit.getSnapshot();
+var schema = new MySchema(snapshot);
+…
+```
+
+Review: Add an example of testing transactions, throwing TransactionExecutionException, because
+it is not easily discoverable?
 
 TestKit also allows creating blocks that contain all current [in-pool][in-pool]
 transactions:
@@ -571,6 +584,7 @@ try (TestKit testKit = TestKit.forService(MyServiceModule.class)) {
 TestKit provides [`getTransactionPool()`][testkit-get-pool] and
 [`findTransactionsInPool(Predicate<TransactionMessage> predicate)`][testkit-find-in-pool]
 methods to inspect transaction pool. It is useful when there is a need to verify
+Review: I'd clarify "transactions that the service submitted itself (e.g., in `afterCommit` method)"
 transactions submitted in `afterCommit` method, as those are put into the pool.
 
 !!! note
@@ -581,6 +595,7 @@ transactions submitted in `afterCommit` method, as those are put into the pool.
     method - to do that, put given transactions into TestKit transaction pool
     with [`Node.submitTransaction(RawTransaction rawTransaction)`][node-submit-transaction].
 
+Review: Accessing?
 #### Checking the blockchain state
 
 In order to verify changes in blockchain state TestKit provides a snapshot of
@@ -593,6 +608,7 @@ committed block). There are several ways to access it:
   Performs a given function with a snapshot of the current database state and
   returns a result of its execution
 - `Snapshot getSnapshot()`
+  Review: getSnapshot first as the default.
   Returns a snapshot of the current database state
 
 !!! note
@@ -601,12 +617,21 @@ committed block). There are several ways to access it:
     disposes created snapshots only when TestKit is closed.
     Therefore it is recommended to use first two methods if a large number
     (e.g. more than a hundred) of snapshots needs to be created.
+    
+Review: Example with getSnapshot a simple service (e.g., "Suppose there is a service
+with a single transaction incrementing a counter stored in `EntryIndex`")?
 
 ### Time Oracle Testing
 
+Review: I'd rewrite to clarify that this functionality exists for testing services
+depending on the time oracle.
 The TestKit allows to use [Time Oracle](../advanced/time.md) in your tests.
 To do that, TestKit should be created with
 [`TimeProvider`][testkit-time-provider], which allows to manually manipulate
+Review: by time service. However, it does not manipulate the time in the schema,
+it manipulates the time source that the time service uses to calculate the time.
+Therefore, the users need to be aware of the time oracle implementation details
+to use it successfully in service tests. I am not sure how to explain it best. 
 time that is returned by TestKit time service.
 
 ```java
@@ -616,6 +641,7 @@ try (TestKit testKit = TestKit.builder()
       .withService(MyServiceModule.class)
       .withTimeService(timeProvider)
       .build()) {
+  // Review: This example is broken — snapshot corresponds to the genesis block.
   Snapshot view = testKit.getSnapshot();
   TimeSchema timeSchema = TimeSchema.newInstance(view);
 
@@ -628,9 +654,46 @@ try (TestKit testKit = TestKit.builder()
   // Check that time service returns time provided by user
   Optional<ZonedDateTime> consolidatedTime = timeSchema.getTime().toOptional();
   assertThat(consolidatedTime).hasValue(initialTime);
+  
+  // Review: Do you think we shall show this delay in time, e.g.:
+  
+  ZonedDateTime initialTime = ZonedDateTime.of(2000, 1, 1, 1, 1, 1, 1, ZoneOffset.UTC);
+  testKit.createBlock(); 
+  // The time service have submitted its first transaction, but it has not executed yet
+  Optional<ZonedDateTime> consolidateTime1 = testKit.applySnapshot(s -> {
+    TimeSchema timeSchema = TimeSchema.newInstance(s);
+    return timeSchema.getTime().toOptional();
+  });
+  // No time available till the time service transaction is processed
+  assertThat(consolidatedTime).isEmpty();
+  
+  // Advance the time
+  ZonedDateTime time1 = initialTime.plusSeconds(1);
+  timeProvider.setTime(time1);
+  testKit.createBlock();
+  // The time service have submitted its second transaction. The first must have
+  // been executed, with consolidated time now available and equal to initialTime:
+  Optional<ZonedDateTime> consolidateTime2 = testKit.applySnapshot(s -> {
+      TimeSchema timeSchema = TimeSchema.newInstance(s);
+      return timeSchema.getTime().toOptional();
+  });
+  assertThat(consolidatedTime).hasValue(initialTime);
+  
+  // Advance the time
+  ZonedDateTime time2 = initialTime.plusSeconds(1);
+  timeProvider.setTime(time2);
+  testKit.createBlock();
+  // The time service have submitted its third transaction, and processed the second. 
+  // The consolidated time must be equal to time1.
+  Optional<ZonedDateTime> consolidateTime3 = testKit.applySnapshot(s -> {
+      TimeSchema timeSchema = TimeSchema.newInstance(s);
+      return timeSchema.getTime().toOptional();
+  });
+  assertThat(consolidatedTime).hasValue(time1);
 }
 ```
 
+Review: JUnit 5 to be exact
 ### TestKit JUnit extension
 
 TestKit JUnit extension simplifies writing tests that use TestKit. It allows to
@@ -669,6 +732,7 @@ TestKitExtension testKitExtension = new TestKitExtension(
   TestKit.builder()
     .withService(MyServiceModule.class));
 
+Review: Inconsistent indentation
 @Test
  void validatorTest(TestKit testKit) {
    // Injected TestKit has default configuration, specified in builder above
@@ -692,6 +756,7 @@ TestKitExtension testKitExtension = new TestKitExtension(
 ### API
 
 To test API implemented with Vertx tools, use the tools described in the
+Review: https://vertx.io/docs/vertx-junit5/java/
 [project documentation](https://vertx.io/docs/vertx-unit/java/#_introduction).
 You can use [Vertx Web Client][vertx-web-client] as a client or another HTTP
 client.
